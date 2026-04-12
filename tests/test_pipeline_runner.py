@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from sqlalchemy import select
@@ -85,7 +85,18 @@ async def test_run_pipeline_saves_mentions_and_analysis(db_session):
 
         return {"analysis_results": analysis_results, "themes": themes_data}
 
-    with patch("signalgraph.pipeline.runner.analyze_mentions", side_effect=fake_analyze_mentions):
+    async def fake_link_themes(themes, company_id, session, similarity_threshold=0.3):
+        return themes
+
+    async def fake_evaluate_legitimacy(themes):
+        return []
+
+    with (
+        patch("signalgraph.pipeline.runner.analyze_mentions", side_effect=fake_analyze_mentions),
+        patch("signalgraph.pipeline.runner.build_history_summary", return_value="No prior themes detected."),
+        patch("signalgraph.pipeline.runner.link_themes", side_effect=fake_link_themes),
+        patch("signalgraph.pipeline.runner.evaluate_legitimacy", side_effect=fake_evaluate_legitimacy),
+    ):
         run_id = await run_pipeline(
             company=company,
             sources=[FakeSource()],
@@ -129,3 +140,89 @@ async def test_run_pipeline_saves_mentions_and_analysis(db_session):
     # Verify theme_id is set on analysis results
     for ar in analysis_results:
         assert ar.theme_id is not None
+
+
+@pytest.mark.asyncio
+async def test_full_pipeline_with_memory_and_legitimacy(db_session):
+    """Test that the full pipeline calls memory and legitimacy stages."""
+    company = Company(
+        id=uuid.uuid4(),
+        name="FullPipelineCorp",
+        slug="fullpipelinecorp",
+        search_terms=["fullpipelinecorp"],
+    )
+    db_session.add(company)
+    await db_session.commit()
+
+    captured_theme_id = None
+
+    async def fake_analyze_mentions(mentions, company_name, run_id, history_summary=""):
+        results = []
+        themes_data = []
+        for i, mention in enumerate(mentions):
+            mid = str(mention.id)
+            sentiment = -0.5 if i == 0 else 0.5
+            results.append({
+                "mention_id": mid,
+                "sentiment": sentiment,
+                "sentiment_confidence": 0.9,
+                "topics": ["topic"],
+                "run_id": str(run_id),
+            })
+        if mentions:
+            themes_data.append({
+                "name": "Test Theme",
+                "summary": "A test theme",
+                "mention_ids": [str(mentions[0].id)],
+                "platforms": ["reddit"],
+                "avg_sentiment": -0.5,
+                "run_id": str(run_id),
+            })
+        return {"analysis_results": results, "themes": themes_data}
+
+    async def fake_link_themes(themes, company_id, session, similarity_threshold=0.3):
+        nonlocal captured_theme_id
+        if themes:
+            captured_theme_id = themes[0].id
+        return themes
+
+    async def fake_evaluate_legitimacy(themes):
+        if not themes:
+            return []
+        return [
+            {
+                "theme_id": str(themes[0].id),
+                "legitimacy_score": 0.75,
+                "legitimacy_class": "organic",
+                "reasoning": "Looks legitimate.",
+            }
+        ]
+
+    mock_build_history = AsyncMock(return_value="No prior themes detected.")
+
+    with (
+        patch("signalgraph.pipeline.runner.analyze_mentions", side_effect=fake_analyze_mentions),
+        patch("signalgraph.pipeline.runner.build_history_summary", mock_build_history),
+        patch("signalgraph.pipeline.runner.link_themes", side_effect=fake_link_themes),
+        patch("signalgraph.pipeline.runner.evaluate_legitimacy", side_effect=fake_evaluate_legitimacy),
+    ):
+        run_id = await run_pipeline(
+            company=company,
+            sources=[FakeSource()],
+            session=db_session,
+        )
+
+    assert isinstance(run_id, uuid.UUID)
+
+    # Verify build_history_summary was called
+    mock_build_history.assert_called_once()
+
+    # Verify theme has legitimacy data
+    assert captured_theme_id is not None
+    result = await db_session.execute(
+        select(Theme).where(Theme.id == captured_theme_id)
+    )
+    theme = result.scalar_one()
+    assert theme.legitimacy_score == 0.75
+    assert theme.legitimacy_class == "organic"
+    assert theme.legitimacy_reasoning == "Looks legitimate."

@@ -7,6 +7,8 @@ from signalgraph.models.analysis import AnalysisResult, Theme
 from signalgraph.models.company import Company
 from signalgraph.models.mention import RawMention
 from signalgraph.pipeline.analyzer import analyze_mentions
+from signalgraph.pipeline.legitimacy import evaluate_legitimacy
+from signalgraph.pipeline.memory import build_history_summary, link_themes
 from signalgraph.pipeline.normalizer import deduplicate, normalize_text
 from signalgraph.sources.base import RawMentionData, Source
 
@@ -117,15 +119,35 @@ async def run_pipeline(
 
     mentions = await run_ingestion(company, sources, since, session)
 
+    # Build history summary for context
+    history_summary = await build_history_summary(company.id, session)
+
     analysis = await analyze_mentions(
         mentions=mentions,
         company_name=company.name,
         run_id=run_id,
+        history_summary=history_summary,
     )
 
-    await save_analysis(analysis, company.id, run_id, session)
+    themes = await save_analysis(analysis, company.id, run_id, session)
 
-    # TODO: run legitimacy filter (Task 12)
+    # Link new themes to existing ones
+    linked_themes = await link_themes(themes, company.id, session)
+
+    # Evaluate legitimacy of linked themes
+    legitimacy_results = await evaluate_legitimacy(linked_themes)
+
+    # Update theme records with legitimacy data
+    legitimacy_by_id = {r["theme_id"]: r for r in legitimacy_results}
+    for theme in linked_themes:
+        result = legitimacy_by_id.get(str(theme.id))
+        if result:
+            theme.legitimacy_score = result["legitimacy_score"]
+            theme.legitimacy_class = result["legitimacy_class"]
+            theme.legitimacy_reasoning = result["reasoning"]
+
+    await session.commit()
+
     # TODO: generate brief (Task 13)
 
     return run_id
