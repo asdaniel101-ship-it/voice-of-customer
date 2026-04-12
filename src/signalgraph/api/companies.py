@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from signalgraph.database import get_session
 from signalgraph.models.company import Company
+from signalgraph.pipeline.runner import run_pipeline
 from signalgraph.schemas.company import CompanyCreate, CompanyResponse, CompanyUpdate
 
 router = APIRouter(prefix="/api/companies")
@@ -64,6 +65,19 @@ async def update_company(
     await session.commit()
     await session.refresh(company)
     return CompanyResponse.model_validate(company)
+
+
+@router.post("/{company_id}/run", status_code=status.HTTP_202_ACCEPTED)
+async def trigger_pipeline_run(
+    company_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    company = await session.get(Company, company_id)
+    if company is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found.")
+
+    run_id = await run_pipeline(company=company, sources=[], session=session)
+    return {"run_id": str(run_id), "status": "started"}
 
 
 @router.delete("/{company_id}", status_code=status.HTTP_204_NO_CONTENT)

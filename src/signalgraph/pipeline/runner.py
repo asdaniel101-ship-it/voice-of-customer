@@ -4,9 +4,11 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from signalgraph.models.analysis import AnalysisResult, Theme
+from signalgraph.models.brief import Brief
 from signalgraph.models.company import Company
 from signalgraph.models.mention import RawMention
 from signalgraph.pipeline.analyzer import analyze_mentions
+from signalgraph.pipeline.briefer import generate_brief
 from signalgraph.pipeline.legitimacy import evaluate_legitimacy
 from signalgraph.pipeline.memory import build_history_summary, link_themes
 from signalgraph.pipeline.normalizer import deduplicate, normalize_text
@@ -148,6 +150,16 @@ async def run_pipeline(
 
     await session.commit()
 
-    # TODO: generate brief (Task 13)
+    # Generate intelligence brief and persist
+    brief_content = await generate_brief(company, run_id, session)
+    brief = Brief(
+        id=uuid.uuid4(),
+        company_id=company.id,
+        run_id=run_id,
+        content=brief_content,
+        summary=brief_content.get("summary", ""),
+    )
+    session.add(brief)
+    await session.commit()
 
     return run_id
