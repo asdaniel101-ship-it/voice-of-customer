@@ -21,6 +21,7 @@ async def create_company(
         id=uuid.uuid4(),
         name=payload.name,
         slug=payload.slug,
+        website=payload.website,
         search_terms=payload.search_terms,
         competitors=payload.competitors,
         sources=payload.sources,
@@ -46,6 +47,17 @@ async def list_companies(
     result = await session.execute(select(Company))
     companies = result.scalars().all()
     return [CompanyResponse.model_validate(c) for c in companies]
+
+
+@router.get("/{company_id}", response_model=CompanyResponse)
+async def get_company(
+    company_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+) -> CompanyResponse:
+    company = await session.get(Company, company_id)
+    if company is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found.")
+    return CompanyResponse.model_validate(company)
 
 
 @router.patch("/{company_id}", response_model=CompanyResponse)
@@ -76,8 +88,32 @@ async def trigger_pipeline_run(
     if company is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found.")
 
-    run_id = await run_pipeline(company=company, sources=[], session=session)
+    sources = _build_sources(company.sources)
+    run_id = await run_pipeline(company=company, sources=sources, session=session)
     return {"run_id": str(run_id), "status": "started"}
+
+
+def _build_sources(source_config: dict) -> list:
+    """Instantiate source adapters from company source config dict."""
+    from signalgraph.sources.appstore import AppStoreSource
+    from signalgraph.sources.hackernews import HackerNewsSource
+    from signalgraph.sources.playstore import PlayStoreSource
+    from signalgraph.sources.reddit import RedditSource
+    from signalgraph.sources.trustpilot import TrustpilotSource
+
+    sources = []
+    for name, config in source_config.items():
+        if name == "hackernews":
+            sources.append(HackerNewsSource())
+        elif name == "appstore" and config.get("app_id"):
+            sources.append(AppStoreSource(app_id=config["app_id"]))
+        elif name == "playstore" and config.get("app_id"):
+            sources.append(PlayStoreSource(app_id=config["app_id"]))
+        elif name == "trustpilot" and config.get("domain"):
+            sources.append(TrustpilotSource(domain=config["domain"]))
+        elif name == "reddit":
+            sources.append(RedditSource())
+    return sources
 
 
 @router.delete("/{company_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -89,5 +125,5 @@ async def delete_company(
     if company is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found.")
 
-    company.active = False
+    await session.delete(company)
     await session.commit()

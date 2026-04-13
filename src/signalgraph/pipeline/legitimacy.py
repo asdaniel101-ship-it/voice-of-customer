@@ -44,14 +44,24 @@ def _extract_json(text: str) -> list:
     # Try to find JSON in a ```json ... ``` block
     match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
     if match:
-        return json.loads(match.group(1).strip())
+        try:
+            return json.loads(match.group(1).strip())
+        except json.JSONDecodeError:
+            pass
 
-    # Try to find raw JSON array
-    match = re.search(r"\[.*\]", text, re.DOTALL)
-    if match:
-        return json.loads(match.group(0).strip())
+    # Try to find raw JSON array - find first [ and last ]
+    first = text.find("[")
+    last = text.rfind("]")
+    if first != -1 and last != -1 and last > first:
+        try:
+            return json.loads(text[first : last + 1])
+        except json.JSONDecodeError:
+            pass
 
-    return json.loads(text.strip())
+    try:
+        return json.loads(text.strip())
+    except json.JSONDecodeError:
+        return []
 
 
 async def evaluate_legitimacy(themes: list[Theme]) -> list[dict]:
@@ -77,7 +87,12 @@ async def evaluate_legitimacy(themes: list[Theme]) -> list[dict]:
     themes_json = json.dumps(themes_data, indent=2)
     prompt = LEGITIMACY_PROMPT.format(themes_json=themes_json)
 
-    client = anthropic.AsyncAnthropic()
+    from signalgraph.config import settings
+
+    if not settings.anthropic_api_key:
+        return []
+
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     message = await client.messages.create(
         model="claude-opus-4-5",
         max_tokens=2048,

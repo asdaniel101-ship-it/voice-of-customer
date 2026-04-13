@@ -52,7 +52,7 @@ async def test_appstore_fetch_parses_rss():
     with patch("signalgraph.sources.appstore.httpx.AsyncClient", return_value=mock_client):
         mentions = await source.fetch(["TestApp"], since)
 
-    assert len(mentions) == 2
+    assert len(mentions) == 10  # 2 reviews x 5 countries
 
     # Check first mention (1-star)
     first = next(m for m in mentions if m.source_id == "1111111111")

@@ -55,7 +55,9 @@ async def test_evaluate_legitimacy_returns_scores():
 
     mock_anthropic_class = MagicMock(return_value=mock_client)
 
-    with patch("signalgraph.pipeline.legitimacy.anthropic") as mock_anthropic_module:
+    with patch("signalgraph.pipeline.legitimacy.anthropic") as mock_anthropic_module, \
+         patch("signalgraph.config.settings") as mock_settings:
+        mock_settings.anthropic_api_key = "test-key"
         mock_anthropic_module.AsyncAnthropic = mock_anthropic_class
 
         results = await evaluate_legitimacy([theme])
@@ -110,7 +112,9 @@ async def test_evaluate_legitimacy_multiple_themes():
 
     mock_anthropic_class = MagicMock(return_value=mock_client)
 
-    with patch("signalgraph.pipeline.legitimacy.anthropic") as mock_anthropic_module:
+    with patch("signalgraph.pipeline.legitimacy.anthropic") as mock_anthropic_module, \
+         patch("signalgraph.config.settings") as mock_settings:
+        mock_settings.anthropic_api_key = "test-key"
         mock_anthropic_module.AsyncAnthropic = mock_anthropic_class
 
         results = await evaluate_legitimacy([theme_a, theme_b])

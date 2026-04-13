@@ -7,6 +7,7 @@ from pydantic import BaseModel
 class CompanyCreate(BaseModel):
     name: str
     slug: str
+    website: str | None = None
     search_terms: list[str]
     competitors: list[str] = []
     sources: dict = {}
@@ -16,6 +17,7 @@ class CompanyCreate(BaseModel):
 class CompanyUpdate(BaseModel):
     name: str | None = None
     slug: str | None = None
+    website: str | None = None
     search_terms: list[str] | None = None
     competitors: list[str] | None = None
     sources: dict | None = None
@@ -27,6 +29,7 @@ class CompanyResponse(BaseModel):
     id: uuid.UUID
     name: str
     slug: str
+    website: str | None
     search_terms: list
     competitors: list
     sources: dict

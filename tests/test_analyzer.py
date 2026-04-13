@@ -82,8 +82,10 @@ async def test_analyze_mentions_returns_results():
 
     mock_anthropic_class = MagicMock(return_value=mock_client)
 
-    with patch("signalgraph.pipeline.analyzer.anthropic") as mock_anthropic_module:
+    with patch("signalgraph.pipeline.analyzer.anthropic") as mock_anthropic_module, \
+         patch("signalgraph.config.settings") as mock_settings:
         mock_anthropic_module.AsyncAnthropic = mock_anthropic_class
+        mock_settings.anthropic_api_key = "test-key"
 
         result = await analyze_mentions(
             mentions=mentions,

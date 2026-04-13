@@ -13,6 +13,7 @@ class Company(Base):
     id: Mapped[uuid.UUID] = mapped_column(GUID(), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(255))
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    website: Mapped[str | None] = mapped_column(String(512), nullable=True, default=None)
     search_terms: Mapped[list] = mapped_column(JSON, default=list)
     competitors: Mapped[list] = mapped_column(JSON, default=list)
     sources: Mapped[dict] = mapped_column(JSON, default=dict)

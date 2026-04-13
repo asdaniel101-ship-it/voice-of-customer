@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SignalGraph</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #242836;
+    --border: #2e3347;
+    --text: #e4e6f0;
+    --text2: #8b8fa3;
+    --accent: #6c63ff;
+    --accent2: #8b84ff;
+    --green: #34d399;
+    --red: #f87171;
+    --yellow: #fbbf24;
+    --blue: #60a5fa;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+  /* Layout */
+  .app { display: flex; min-height: 100vh; }
+  .sidebar { width: 280px; background: var(--surface); border-right: 1px solid var(--border); padding: 24px 0; display: flex; flex-direction: column; }
+  .main { flex: 1; padding: 32px 40px; overflow-y: auto; }
+
+  /* Sidebar */
+  .logo { padding: 0 24px 24px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+  .logo h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; }
+  .logo h1 span { color: var(--accent); }
+  .logo p { font-size: 12px; color: var(--text2); margin-top: 4px; }
+
+  .company-list { flex: 1; overflow-y: auto; }
+  .company-item { padding: 12px 24px; cursor: pointer; border-left: 3px solid transparent; transition: all 0.15s; }
+  .company-item:hover { background: var(--surface2); }
+  .company-item.active { background: var(--surface2); border-left-color: var(--accent); }
+  .company-item .name { font-weight: 600; font-size: 14px; }
+  .company-item .meta { font-size: 12px; color: var(--text2); margin-top: 2px; }
+  .company-item .status { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .company-item .status.active { background: var(--green); }
+  .company-item .status.inactive { background: var(--text2); }
+
+  .sidebar-footer { padding: 16px 24px; border-top: 1px solid var(--border); }
+
+  /* Buttons */
+  .btn { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.15s; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-primary { background: var(--accent); color: white; }
+  .btn-primary:hover { background: var(--accent2); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { background: var(--border); }
+  .btn-danger { background: transparent; color: var(--red); border: 1px solid var(--red); }
+  .btn-danger:hover { background: rgba(248,113,113,0.1); }
+  .btn-full { width: 100%; justify-content: center; }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  .card-header h2 { font-size: 16px; font-weight: 700; }
+  .card-header .badge { font-size: 12px; padding: 2px 10px; border-radius: 12px; background: var(--surface2); color: var(--text2); }
+
+  /* Dashboard header */
+  .dash-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
+  .dash-header h1 { font-size: 28px; font-weight: 800; letter-spacing: -1px; }
+  .dash-header .subtitle { color: var(--text2); font-size: 14px; margin-top: 4px; }
+  .dash-actions { display: flex; gap: 10px; }
+
+  /* Stats row */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .stat .label { font-size: 12px; color: var(--text2); text-transform: uppercase; letter-spacing: 0.5px; }
+  .stat .value { font-size: 28px; font-weight: 800; margin-top: 4px; }
+  .stat .value.positive { color: var(--green); }
+  .stat .value.negative { color: var(--red); }
+  .stat .value.neutral { color: var(--yellow); }
+
+  /* Brief */
+  .brief-content { line-height: 1.6; font-size: 14px; }
+  .brief-section { margin-bottom: 16px; }
+  .brief-section h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); margin-bottom: 8px; }
+  .brief-empty { color: var(--text2); font-style: italic; }
+
+  /* Mentions table */
+  .mentions-table { width: 100%; border-collapse: collapse; }
+  .mentions-table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text2); padding: 8px 12px; border-bottom: 1px solid var(--border); }
+  .mentions-table td { padding: 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: top; }
+  .mentions-table tr:hover { background: var(--surface2); }
+  .mention-text { max-width: 500px; line-height: 1.5; }
+  .source-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+  .source-badge.hackernews { background: rgba(255,102,0,0.15); color: #ff6600; }
+  .source-badge.appstore { background: rgba(0,122,255,0.15); color: #007aff; }
+  .source-badge.reddit { background: rgba(255,69,0,0.15); color: #ff4500; }
+  .source-badge.youtube { background: rgba(255,0,0,0.15); color: #ff0000; }
+  .source-badge.playstore { background: rgba(52,168,83,0.15); color: #34a853; }
+  .source-badge.trustpilot { background: rgba(0,182,122,0.15); color: #00b67a; }
+
+  /* Themes */
+  .theme-card { background: var(--surface2); border-radius: 8px; padding: 16px; margin-bottom: 12px; }
+  .theme-card .theme-header { display: flex; justify-content: space-between; align-items: center; }
+  .theme-card .theme-name { font-weight: 700; font-size: 15px; }
+  .theme-card .theme-summary { color: var(--text2); font-size: 13px; margin-top: 8px; line-height: 1.5; }
+  .theme-meta { display: flex; gap: 16px; margin-top: 10px; font-size: 12px; color: var(--text2); }
+  .sentiment-bar { width: 60px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; display: inline-block; vertical-align: middle; margin-left: 4px; }
+  .sentiment-fill { height: 100%; border-radius: 3px; }
+
+  /* Modal */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: flex; align-items: center; justify-content: center; z-index: 100; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; width: 480px; max-width: 90vw; }
+  .modal h2 { font-size: 20px; margin-bottom: 20px; }
+  .modal .form-group { margin-bottom: 16px; }
+  .modal label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--text2); }
+  .modal input, .modal select { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 14px; }
+  .modal input:focus, .modal select:focus { outline: none; border-color: var(--accent); }
+  .modal .form-row { display: flex; gap: 12px; }
+  .modal .form-row .form-group { flex: 1; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+  .chip-input { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px; min-height: 42px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface2); cursor: text; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; background: var(--accent); color: white; font-size: 12px; }
+  .chip button { background: none; border: none; color: white; cursor: pointer; font-size: 14px; padding: 0 2px; }
+  .chip-input input { border: none; background: none; color: var(--text); outline: none; flex: 1; min-width: 80px; font-size: 13px; padding: 2px; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+  .tab { padding: 10px 20px; font-size: 13px; font-weight: 600; color: var(--text2); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Filter bar */
+  .filter-bar { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; }
+  .filter-bar select { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--text); font-size: 13px; }
+
+  /* Loading */
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-state { text-align: center; padding: 40px; color: var(--text2); }
+
+  /* Empty state */
+  .empty-state { text-align: center; padding: 60px 20px; }
+  .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+  .empty-state h3 { font-size: 18px; margin-bottom: 8px; }
+  .empty-state p { color: var(--text2); font-size: 14px; max-width: 400px; margin: 0 auto; }
+
+  /* Running indicator */
+  .running { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; background: rgba(108,99,255,0.1); border: 1px solid rgba(108,99,255,0.3); border-radius: 8px; font-size: 13px; color: var(--accent); }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 24px; right: 24px; padding: 12px 20px; border-radius: 8px; font-size: 13px; font-weight: 600; z-index: 200; animation: slideUp 0.3s; }
+  .toast.success { background: var(--green); color: #000; }
+  .toast.error { background: var(--red); color: #fff; }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+  .hidden { display: none; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="logo">
+      <h1><span>Signal</span>Graph</h1>
+      <p>Sentiment Intelligence Platform</p>
+    </div>
+    <div class="company-list" id="companyList">
+      <div class="loading-state"><div class="spinner"></div></div>
+    </div>
+    <div class="sidebar-footer">
+      <button class="btn btn-primary btn-full" onclick="showAddCompanyModal()">+ Add Company</button>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="main" id="mainContent">
+    <div class="empty-state">
+      <div class="icon">&#x1F4E1;</div>
+      <h3>Welcome to SignalGraph</h3>
+      <p>Add a company to start monitoring customer sentiment across platforms. Click "Add Company" to get started.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Add Company Modal -->
+<div class="modal-overlay hidden" id="addCompanyModal">
+  <div class="modal">
+    <h2>Add Company</h2>
+    <div class="form-group">
+      <label>Company Name</label>
+      <input type="text" id="companyName" placeholder="e.g., Netflix">
+    </div>
+    <div class="form-group">
+      <label>Website <span style="font-weight:400;color:var(--text3)">(optional)</span></label>
+      <input type="url" id="companyWebsite" placeholder="e.g., https://netflix.com">
+    </div>
+    <div class="form-group">
+      <label>Competitors <span style="font-weight:400;color:var(--text3)">(press Enter to add)</span></label>
+      <div class="chip-input" id="competitorsInput" onclick="this.querySelector('input').focus()">
+        <input type="text" placeholder="e.g., Disney+, Hulu..." onkeydown="handleChipInput(event, 'competitors')">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Sources</label>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:4px;">
+        <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+          <input type="checkbox" id="srcHN" checked> Hacker News
+        </label>
+        <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+          <input type="checkbox" id="srcReddit" checked> Reddit
+        </label>
+        <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+          <input type="checkbox" id="srcAppStore" checked> App Store
+        </label>
+        <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+          <input type="checkbox" id="srcPlayStore" checked> Google Play
+        </label>
+        <label style="font-size:13px;display:flex;align-items:center;gap:4px;cursor:pointer;">
+          <input type="checkbox" id="srcTrustpilot" checked> Trustpilot
+        </label>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="hideAddCompanyModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="createCompany()">Add Company</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '';
+let companies = [];
+let activeCompanyId = null;
+let chipData = { searchTerms: [], competitors: [] };
+
+// --- API calls ---
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, {
+    headers: { 'Content-Type': 'application/json', ...opts.headers },
+    ...opts,
+  });
+  if (res.status === 204) return null;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || 'API error');
+  }
+  return res.json();
+}
+
+// --- Toast ---
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+// --- Companies ---
+async function loadCompanies() {
+  companies = await api('/api/companies');
+  renderCompanyList();
+  if (companies.length > 0 && !activeCompanyId) {
+    selectCompany(companies[0].id);
+  }
+}
+
+function renderCompanyList() {
+  const list = document.getElementById('companyList');
+  if (companies.length === 0) {
+    list.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text2);font-size:13px;">No companies yet</div>';
+    return;
+  }
+
+  // Group: main companies (those whose competitors include others in the list) first
+  // A company is a "competitor entry" if another company lists it in competitors
+  const competitorNames = new Set();
+  companies.forEach(c => (c.competitors || []).forEach(name => competitorNames.add(name.toLowerCase())));
+
+  const mainCompanies = companies.filter(c => !competitorNames.has(c.name.toLowerCase()));
+  const competitorCompanies = companies.filter(c => competitorNames.has(c.name.toLowerCase()));
+
+  let html = '';
+  mainCompanies.forEach(main => {
+    html += `<div class="company-item ${main.id === activeCompanyId ? 'active' : ''}" onclick="selectCompany('${main.id}')">
+      <div class="name"><span class="status ${main.active ? 'active' : 'inactive'}"></span>${main.name}</div>
+      <div class="meta">${Object.keys(main.sources).length} sources</div>
+    </div>`;
+    // Show its competitors indented below
+    const myCompetitors = (main.competitors || []).map(n => n.toLowerCase());
+    competitorCompanies.filter(c => myCompetitors.includes(c.name.toLowerCase())).forEach(comp => {
+      html += `<div class="company-item ${comp.id === activeCompanyId ? 'active' : ''}" onclick="selectCompany('${comp.id}')" style="padding-left:32px;opacity:0.85;">
+        <div class="name" style="font-size:13px;"><span class="status ${comp.active ? 'active' : 'inactive'}"></span>${comp.name} <span style="color:var(--text3);font-size:11px;">competitor</span></div>
+      </div>`;
+    });
+  });
+
+  // Any remaining competitors not linked to a main company
+  const shownCompIds = new Set();
+  mainCompanies.forEach(main => {
+    (main.competitors || []).forEach(n => {
+      const comp = competitorCompanies.find(c => c.name.toLowerCase() === n.toLowerCase());
+      if (comp) shownCompIds.add(comp.id);
+    });
+  });
+  competitorCompanies.filter(c => !shownCompIds.has(c.id)).forEach(c => {
+    html += `<div class="company-item ${c.id === activeCompanyId ? 'active' : ''}" onclick="selectCompany('${c.id}')">
+      <div class="name"><span class="status ${c.active ? 'active' : 'inactive'}"></span>${c.name}</div>
+      <div class="meta">${Object.keys(c.sources).length} sources</div>
+    </div>`;
+  });
+
+  list.innerHTML = html;
+}
+
+async function selectCompany(id) {
+  activeCompanyId = id;
+  renderCompanyList();
+  await renderDashboard();
+}
+
+// --- Dashboard ---
+async function renderDashboard() {
+  const company = companies.find(c => c.id === activeCompanyId);
+  if (!company) return;
+
+  const main = document.getElementById('mainContent');
+  main.innerHTML = `
+    <div class="dash-header">
+      <div>
+        <h1>${company.name}</h1>
+        <div class="subtitle">${Object.keys(company.sources).join(', ')} &bull; ${company.competitors.length ? 'vs ' + company.competitors.join(', ') : 'no competitors'}</div>
+      </div>
+      <div class="dash-actions">
+        <button class="btn btn-danger" onclick="deleteCompany('${company.id}')">Delete</button>
+        ${company.competitors.length > 0 ? `<button class="btn btn-secondary" id="runAllBtn" onclick="triggerRunAll('${company.id}')">Run All (+ competitors)</button>` : ''}
+        <button class="btn btn-primary" id="runBtn" onclick="triggerRun('${company.id}')">Run Pipeline</button>
+      </div>
+    </div>
+    <div id="runStatus"></div>
+    <div class="tabs">
+      <div class="tab active" data-tab="brief" onclick="switchTab('brief')">Intelligence Brief</div>
+      <div class="tab" data-tab="mentions" onclick="switchTab('mentions')">Mentions</div>
+      <div class="tab" data-tab="themes" onclick="switchTab('themes')">Themes</div>
+    </div>
+    <div id="tabContent">
+      <div class="loading-state"><div class="spinner"></div> Loading...</div>
+    </div>
+  `;
+
+  switchTab('brief');
+}
+
+async function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  const content = document.getElementById('tabContent');
+
+  if (tab === 'brief') {
+    content.innerHTML = '<div class="loading-state"><div class="spinner"></div></div>';
+    try {
+      const brief = await api(`/api/companies/${activeCompanyId}/briefs`);
+      renderBrief(brief);
+    } catch {
+      content.innerHTML = '<div class="empty-state"><h3>No Brief Yet</h3><p>Run the pipeline to generate an intelligence brief.</p></div>';
+    }
+  } else if (tab === 'mentions') {
+    content.innerHTML = '<div class="loading-state"><div class="spinner"></div></div>';
+    // Fetch all mentions across pages
+    let allMentions = [];
+    let offset = 0;
+    while (true) {
+      const batch = await api(`/api/companies/${activeCompanyId}/mentions?limit=200&offset=${offset}`);
+      allMentions = allMentions.concat(batch);
+      if (batch.length < 200) break;
+      offset += 200;
+    }
+    renderMentions(allMentions);
+  } else if (tab === 'themes') {
+    content.innerHTML = '<div class="loading-state"><div class="spinner"></div></div>';
+    const themes = await api(`/api/companies/${activeCompanyId}/themes`);
+    renderThemes(themes);
+  }
+}
+
+function renderBrief(brief) {
+  const c = brief.content;
+  const content = document.getElementById('tabContent');
+
+  const stats = `
+    <div class="stats">
+      <div class="stat">
+        <div class="label">Summary</div>
+        <div style="font-size:14px;margin-top:8px;line-height:1.5;">${c.summary}</div>
+      </div>
+      <div class="stat">
+        <div class="label">Run ID</div>
+        <div style="font-size:12px;margin-top:8px;color:var(--text2);word-break:break-all;">${brief.run_id}</div>
+        <div style="font-size:12px;margin-top:4px;color:var(--text2);">${new Date(brief.created_at).toLocaleString()}</div>
+      </div>
+    </div>
+  `;
+
+  const sections = [];
+
+  if (c.emerging_themes?.length) {
+    sections.push(`<div class="brief-section"><h3>Emerging Themes</h3>${c.emerging_themes.map(t =>
+      `<div class="theme-card"><div class="theme-name">${t.name}</div><div class="theme-summary">${t.summary}</div></div>`
+    ).join('')}</div>`);
+  }
+
+  if (c.trending_themes?.length) {
+    sections.push(`<div class="brief-section"><h3>Trending Themes</h3>${c.trending_themes.map(t =>
+      `<div class="theme-card"><div class="theme-name">${t.name}</div><div class="theme-summary">${t.summary}</div></div>`
+    ).join('')}</div>`);
+  }
+
+  if (c.legitimacy_alerts?.length) {
+    sections.push(`<div class="brief-section"><h3>Legitimacy Alerts</h3>${c.legitimacy_alerts.map(t =>
+      `<div class="theme-card" style="border-left:3px solid var(--red);"><div class="theme-name">${t.name}</div><div class="theme-summary">${t.summary}</div></div>`
+    ).join('')}</div>`);
+  }
+
+  if (c.recommended_actions?.length) {
+    sections.push(`<div class="brief-section"><h3>Recommended Actions</h3><ul style="padding-left:20px;font-size:14px;line-height:1.8;">${
+      c.recommended_actions.map(a => `<li>${a}</li>`).join('')
+    }</ul></div>`);
+  }
+
+  if (c.competitive_signals?.length) {
+    sections.push(`<div class="brief-section"><h3>Competitive Signals</h3><ul style="padding-left:20px;font-size:14px;line-height:1.8;">${
+      c.competitive_signals.map(s => `<li>${s}</li>`).join('')
+    }</ul></div>`);
+  }
+
+  content.innerHTML = stats + '<div class="card"><div class="brief-content">' +
+    (sections.length ? sections.join('') : '<div class="brief-empty">No detailed analysis available. Run the pipeline with an Anthropic API key to get theme analysis.</div>') +
+    '</div></div>';
+}
+
+function renderMentions(mentions) {
+  const content = document.getElementById('tabContent');
+  if (!mentions.length) {
+    content.innerHTML = '<div class="empty-state"><h3>No Mentions</h3><p>Run the pipeline to fetch mentions from configured sources.</p></div>';
+    return;
+  }
+
+  const sources = [...new Set(mentions.map(m => m.source))];
+  const filterHtml = `
+    <div class="filter-bar">
+      <select id="sourceFilter" onchange="filterMentions()">
+        <option value="">All Sources (${mentions.length})</option>
+        ${sources.map(s => `<option value="${s}">${s} (${mentions.filter(m => m.source === s).length})</option>`).join('')}
+      </select>
+    </div>
+  `;
+
+  window._allMentions = mentions;
+
+  content.innerHTML = filterHtml + `<div id="mentionsBody">${buildMentionsTable(mentions)}</div>`;
+}
+
+function cleanMentionText(raw) {
+  // Decode HTML entities
+  const doc = new DOMParser().parseFromString(raw, 'text/html');
+  let text = doc.body.textContent || '';
+  // Strip URLs
+  text = text.replace(/https?:\/\/\S+/g, '').trim();
+  // Strip HTML tags that came through as text
+  text = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  return text;
+}
+
+function highlightTerms(text, maxLen) {
+  // Get search terms from the active company
+  const company = companies.find(c => c.id === activeCompanyId);
+  const terms = company ? company.search_terms.concat([company.name]) : [];
+
+  let truncated = text.substring(0, maxLen);
+  if (text.length > maxLen) truncated += '...';
+
+  // Bold search terms (case insensitive)
+  let result = escapeHtml(truncated);
+  for (const term of terms) {
+    const re = new RegExp(`(${term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    result = result.replace(re, '<strong style="color:var(--accent);">$1</strong>');
+  }
+  return result;
+}
+
+function buildMentionsTable(mentions) {
+  return `<table class="mentions-table">
+    <thead><tr><th>Source</th><th>Author</th><th>Content</th><th>Date</th></tr></thead>
+    <tbody>${mentions.map(m => {
+      const clean = cleanMentionText(m.text);
+      return `
+      <tr>
+        <td><span class="source-badge ${m.source}">${m.source}</span></td>
+        <td style="color:var(--text2);white-space:nowrap;">${m.author || 'anonymous'}</td>
+        <td class="mention-text">${highlightTerms(clean, 250)}
+          ${m.url ? `<br><a href="${m.url}" target="_blank" style="color:var(--accent);font-size:11px;">View source</a>` : ''}
+        </td>
+        <td style="color:var(--text2);white-space:nowrap;font-size:12px;">${new Date(m.published_at).toLocaleDateString()}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+function filterMentions() {
+  const source = document.getElementById('sourceFilter').value;
+  const filtered = source ? window._allMentions.filter(m => m.source === source) : window._allMentions;
+  document.getElementById('mentionsBody').innerHTML = buildMentionsTable(filtered);
+}
+
+function renderThemes(themes) {
+  const content = document.getElementById('tabContent');
+  if (!themes.length) {
+    content.innerHTML = '<div class="empty-state"><h3>No Themes Detected</h3><p>Themes are generated when the pipeline runs with an Anthropic API key configured for sentiment analysis.</p></div>';
+    return;
+  }
+
+  const severityColors = { critical: 'var(--red)', high: '#f59e0b', medium: 'var(--yellow)', low: 'var(--text2)' };
+  const severityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+  themes.sort((a, b) => (severityOrder[a.severity] || 2) - (severityOrder[b.severity] || 2));
+
+  content.innerHTML = themes.map(t => {
+    const sentColor = t.avg_sentiment > 0.2 ? 'var(--green)' : t.avg_sentiment < -0.2 ? 'var(--red)' : 'var(--yellow)';
+    const sentPct = Math.round((t.avg_sentiment + 1) / 2 * 100);
+    const sevColor = severityColors[t.severity] || 'var(--text2)';
+
+    return `
+      <div class="theme-card" style="cursor:pointer;border-left:3px solid ${sevColor};" onclick="openThemeDetail('${t.id}')">
+        <div class="theme-header">
+          <div class="theme-name">${escapeHtml(t.name)}</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span style="font-size:11px;padding:2px 8px;border-radius:12px;background:${sevColor}20;color:${sevColor};font-weight:700;text-transform:uppercase;">${t.severity || 'medium'}</span>
+          </div>
+        </div>
+        <div class="theme-summary">${escapeHtml(t.summary)}</div>
+        <div class="theme-meta">
+          <span><strong>${t.mention_count}</strong> mentions</span>
+          <span>Sentiment: <strong style="color:${sentColor};">${t.avg_sentiment.toFixed(2)}</strong></span>
+          <span>Platforms: ${t.platforms.map(p => `<span class="source-badge ${p}" style="font-size:10px;">${p}</span>`).join(' ')}</span>
+        </div>
+        ${t.action_items?.length ? `<div style="margin-top:10px;font-size:12px;color:var(--accent);">→ ${escapeHtml(t.action_items[0])}</div>` : ''}
+        ${t.sub_themes?.length ? `<div style="margin-top:6px;font-size:11px;color:var(--text2);">Sub-themes: ${t.sub_themes.map(s => escapeHtml(s)).join(' · ')}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
+async function openThemeDetail(themeId) {
+  const main = document.getElementById('mainContent');
+  const company = companies.find(c => c.id === activeCompanyId);
+
+  main.innerHTML = '<div class="loading-state"><div class="spinner"></div> Loading theme details...</div>';
+
+  try {
+    const [theme, mentions] = await Promise.all([
+      api(`/api/themes/${themeId}`),
+      api(`/api/themes/${themeId}/mentions`),
+    ]);
+
+    const sentColor = theme.avg_sentiment > 0.2 ? 'var(--green)' : theme.avg_sentiment < -0.2 ? 'var(--red)' : 'var(--yellow)';
+    const severityColors = { critical: 'var(--red)', high: '#f59e0b', medium: 'var(--yellow)', low: 'var(--text2)' };
+    const sevColor = severityColors[theme.severity] || 'var(--text2)';
+
+    // Platform breakdown
+    const platformCounts = {};
+    mentions.forEach(m => { platformCounts[m.source] = (platformCounts[m.source] || 0) + 1; });
+
+    // Sentiment distribution
+    const sentBuckets = { negative: 0, neutral: 0, positive: 0 };
+    mentions.forEach(m => {
+      if (m.sentiment === null) return;
+      if (m.sentiment < -0.2) sentBuckets.negative++;
+      else if (m.sentiment > 0.2) sentBuckets.positive++;
+      else sentBuckets.neutral++;
+    });
+    const sentTotal = sentBuckets.negative + sentBuckets.neutral + sentBuckets.positive || 1;
+
+    // Topic frequency
+    const topicCounts = {};
+    mentions.forEach(m => {
+      (m.topics || []).forEach(t => { topicCounts[t] = (topicCounts[t] || 0) + 1; });
+    });
+    const topTopics = Object.entries(topicCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+
+    main.innerHTML = `
+      <div style="margin-bottom:20px;">
+        <button class="btn btn-secondary" onclick="renderDashboard()" style="margin-bottom:16px;">← Back to ${escapeHtml(company?.name || 'Dashboard')}</button>
+      </div>
+
+      <div class="dash-header">
+        <div>
+          <h1 style="display:flex;align-items:center;gap:12px;">
+            ${escapeHtml(theme.name)}
+            <span style="font-size:14px;padding:3px 12px;border-radius:12px;background:${sevColor}20;color:${sevColor};font-weight:700;text-transform:uppercase;">${theme.severity || 'medium'}</span>
+          </h1>
+          <div class="subtitle" style="margin-top:8px;max-width:700px;line-height:1.6;">${escapeHtml(theme.summary)}</div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stats">
+        <div class="stat">
+          <div class="label">Mentions</div>
+          <div class="value">${theme.mention_count}</div>
+        </div>
+        <div class="stat">
+          <div class="label">Avg Sentiment</div>
+          <div class="value" style="color:${sentColor};">${theme.avg_sentiment.toFixed(2)}</div>
+        </div>
+        <div class="stat">
+          <div class="label">Platforms</div>
+          <div style="margin-top:8px;">${theme.platforms.map(p => `<span class="source-badge ${p}">${p}</span>`).join(' ')}</div>
+        </div>
+        <div class="stat">
+          <div class="label">Sentiment Split</div>
+          <div style="margin-top:8px;font-size:13px;">
+            <div style="display:flex;gap:4px;height:8px;border-radius:4px;overflow:hidden;margin-bottom:6px;">
+              <div style="width:${(sentBuckets.negative/sentTotal*100).toFixed(0)}%;background:var(--red);"></div>
+              <div style="width:${(sentBuckets.neutral/sentTotal*100).toFixed(0)}%;background:var(--yellow);"></div>
+              <div style="width:${(sentBuckets.positive/sentTotal*100).toFixed(0)}%;background:var(--green);"></div>
+            </div>
+            <span style="color:var(--red);">−${sentBuckets.negative}</span> · <span style="color:var(--yellow);">~${sentBuckets.neutral}</span> · <span style="color:var(--green);">+${sentBuckets.positive}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Action Items -->
+      ${theme.action_items?.length ? `
+      <div class="card">
+        <div class="card-header"><h2>Recommended Actions</h2></div>
+        <ul style="padding-left:20px;font-size:14px;line-height:2;">
+          ${theme.action_items.map(a => `<li>${escapeHtml(a)}</li>`).join('')}
+        </ul>
+      </div>` : ''}
+
+      <!-- Platform Breakdown -->
+      <div class="card">
+        <div class="card-header"><h2>Platform Breakdown</h2><span class="badge">${Object.keys(platformCounts).length} platforms</span></div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+          ${Object.entries(platformCounts).sort((a,b) => b[1]-a[1]).map(([p, c]) => `
+            <div style="background:var(--surface2);border-radius:8px;padding:12px 20px;text-align:center;">
+              <span class="source-badge ${p}" style="font-size:12px;">${p}</span>
+              <div style="font-size:24px;font-weight:800;margin-top:4px;">${c}</div>
+              <div style="font-size:11px;color:var(--text2);">mentions</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <!-- Top Topics -->
+      ${topTopics.length ? `
+      <div class="card">
+        <div class="card-header"><h2>Top Topics</h2></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${topTopics.map(([topic, count]) => `
+            <span style="padding:4px 12px;border-radius:16px;background:var(--surface2);font-size:13px;">
+              ${escapeHtml(topic)} <span style="color:var(--text2);">(${count})</span>
+            </span>
+          `).join('')}
+        </div>
+      </div>` : ''}
+
+      <!-- Sub-themes -->
+      ${theme.sub_themes?.length ? `
+      <div class="card">
+        <div class="card-header"><h2>Merged Sub-themes</h2><span class="badge">${theme.sub_themes.length} merged</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          ${theme.sub_themes.map(s => `<span style="padding:4px 12px;border-radius:16px;background:var(--accent)20;color:var(--accent);font-size:12px;">${escapeHtml(s)}</span>`).join('')}
+        </div>
+      </div>` : ''}
+
+      <!-- Mentions Table -->
+      <div class="card">
+        <div class="card-header"><h2>All Mentions</h2><span class="badge">${mentions.length} mentions</span></div>
+        <div class="filter-bar">
+          <select id="themeSourceFilter" onchange="filterThemeMentions()">
+            <option value="">All platforms</option>
+            ${Object.keys(platformCounts).map(p => `<option value="${p}">${p} (${platformCounts[p]})</option>`).join('')}
+          </select>
+          <select id="themeSentFilter" onchange="filterThemeMentions()">
+            <option value="">All sentiment</option>
+            <option value="negative">Negative only</option>
+            <option value="neutral">Neutral only</option>
+            <option value="positive">Positive only</option>
+          </select>
+        </div>
+        <div id="themeMentionsBody"></div>
+      </div>
+    `;
+
+    window._themeMentions = mentions;
+    renderThemeMentionsTable(mentions);
+
+  } catch (err) {
+    main.innerHTML = `<div class="empty-state"><h3>Error loading theme</h3><p>${err.message}</p></div>`;
+  }
+}
+
+function renderThemeMentionsTable(mentions) {
+  const company = companies.find(c => c.id === activeCompanyId);
+  const terms = company ? company.search_terms.concat([company.name]) : [];
+
+  document.getElementById('themeMentionsBody').innerHTML = `
+    <table class="mentions-table">
+      <thead><tr><th>Source</th><th style="width:60px;">Sent.</th><th>Author</th><th>Content</th><th>Topics</th><th>Date</th></tr></thead>
+      <tbody>${mentions.map(m => {
+        const sent = m.sentiment !== null ? m.sentiment.toFixed(2) : '—';
+        const sentColor = m.sentiment > 0.2 ? 'var(--green)' : m.sentiment < -0.2 ? 'var(--red)' : 'var(--yellow)';
+        const clean = cleanMentionText(m.text);
+        let highlighted = escapeHtml(clean.substring(0, 300)) + (clean.length > 300 ? '...' : '');
+        for (const term of terms) {
+          const re = new RegExp('(' + term.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&') + ')', 'gi');
+          highlighted = highlighted.replace(re, '<strong style="color:var(--accent);">$1</strong>');
+        }
+        return `
+        <tr>
+          <td><span class="source-badge ${m.source}">${m.source}</span></td>
+          <td style="font-weight:700;color:${sentColor};">${sent}</td>
+          <td style="color:var(--text2);white-space:nowrap;font-size:12px;">${m.author || 'anon'}</td>
+          <td class="mention-text">${highlighted}
+            ${m.url ? `<br><a href="${m.url}" target="_blank" style="color:var(--accent);font-size:11px;">View source</a>` : ''}
+          </td>
+          <td style="font-size:11px;color:var(--text2);">${(m.topics || []).slice(0, 3).join(', ')}</td>
+          <td style="color:var(--text2);white-space:nowrap;font-size:12px;">${m.published_at ? new Date(m.published_at).toLocaleDateString() : ''}</td>
+        </tr>`;
+      }).join('')}</tbody>
+    </table>
+  `;
+}
+
+function filterThemeMentions() {
+  const source = document.getElementById('themeSourceFilter').value;
+  const sent = document.getElementById('themeSentFilter').value;
+  let filtered = window._themeMentions;
+  if (source) filtered = filtered.filter(m => m.source === source);
+  if (sent === 'negative') filtered = filtered.filter(m => m.sentiment !== null && m.sentiment < -0.2);
+  if (sent === 'neutral') filtered = filtered.filter(m => m.sentiment !== null && m.sentiment >= -0.2 && m.sentiment <= 0.2);
+  if (sent === 'positive') filtered = filtered.filter(m => m.sentiment !== null && m.sentiment > 0.2);
+  renderThemeMentionsTable(filtered);
+}
+
+// --- Pipeline ---
+async function triggerRun(companyId) {
+  const btn = document.getElementById('runBtn');
+  const statusEl = document.getElementById('runStatus');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Running...';
+  const company = companies.find(c => c.id === companyId);
+  statusEl.innerHTML = `<div class="running"><span class="spinner"></span> Pipeline running for ${company?.name || 'company'}... fetching mentions from sources</div>`;
+
+  try {
+    const result = await api(`/api/companies/${companyId}/run`, { method: 'POST' });
+    toast(`Pipeline complete for ${company?.name}!`);
+    statusEl.innerHTML = '';
+    await switchTab('brief');
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'brief'));
+  } catch (err) {
+    toast(err.message, 'error');
+    statusEl.innerHTML = '';
+  }
+  btn.disabled = false;
+  btn.innerHTML = 'Run Pipeline';
+}
+
+async function triggerRunAll(companyId) {
+  const company = companies.find(c => c.id === companyId);
+  if (!company) return;
+
+  const btn = document.getElementById('runAllBtn');
+  const runBtn = document.getElementById('runBtn');
+  const statusEl = document.getElementById('runStatus');
+  btn.disabled = true;
+  runBtn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Running all...';
+
+  // Collect company + competitor IDs
+  const companyIds = [companyId];
+  for (const compName of (company.competitors || [])) {
+    const comp = companies.find(c => c.name.toLowerCase() === compName.toLowerCase());
+    if (comp) companyIds.push(comp.id);
+  }
+
+  for (let i = 0; i < companyIds.length; i++) {
+    const cid = companyIds[i];
+    const c = companies.find(x => x.id === cid);
+    statusEl.innerHTML = `<div class="running"><span class="spinner"></span> Running pipeline ${i + 1}/${companyIds.length}: ${c?.name || cid}...</div>`;
+    try {
+      await api(`/api/companies/${cid}/run`, { method: 'POST' });
+      toast(`Pipeline complete for ${c?.name}!`);
+    } catch (err) {
+      toast(`Error for ${c?.name}: ${err.message}`, 'error');
+    }
+  }
+
+  statusEl.innerHTML = '';
+  btn.disabled = false;
+  runBtn.disabled = false;
+  btn.innerHTML = 'Run All (+ competitors)';
+  await switchTab('brief');
+}
+
+// --- Company CRUD ---
+function showAddCompanyModal() {
+  chipData = { searchTerms: [], competitors: [] };
+  document.getElementById('companyName').value = '';
+  document.getElementById('companyWebsite').value = '';
+  document.getElementById('srcHN').checked = true;
+  document.getElementById('srcReddit').checked = true;
+  document.getElementById('srcAppStore').checked = true;
+  document.getElementById('srcPlayStore').checked = true;
+  document.getElementById('srcTrustpilot').checked = true;
+  renderChips('competitors');
+  document.getElementById('addCompanyModal').classList.remove('hidden');
+}
+
+function hideAddCompanyModal() {
+  document.getElementById('addCompanyModal').classList.add('hidden');
+}
+
+// Well-known app IDs / package names / domains for popular companies
+const KNOWN_APPS = {
+  'netflix': { appstore: '363590051', playstore: 'com.netflix.mediaclient', trustpilot: 'netflix.com' },
+  'spotify': { appstore: '324684580', playstore: 'com.spotify.music', trustpilot: 'spotify.com' },
+  'uber': { appstore: '368677368', playstore: 'com.ubercab', trustpilot: 'uber.com' },
+  'airbnb': { appstore: '401626263', playstore: 'com.airbnb.android', trustpilot: 'airbnb.com' },
+  'doordash': { appstore: '719972451', playstore: 'com.dd.doordash', trustpilot: 'doordash.com' },
+  'tiktok': { appstore: '835599320', playstore: 'com.zhiliaoapp.musically', trustpilot: 'tiktok.com' },
+  'instagram': { appstore: '389801252', playstore: 'com.instagram.android', trustpilot: 'instagram.com' },
+  'whatsapp': { appstore: '310633997', playstore: 'com.whatsapp', trustpilot: 'whatsapp.com' },
+  'slack': { appstore: '618783545', playstore: 'com.Slack', trustpilot: 'slack.com' },
+  'zoom': { appstore: '546505307', playstore: 'us.zoom.videomeetings', trustpilot: 'zoom.us' },
+  'amazon': { appstore: '297606951', playstore: 'com.amazon.mShop.android.shopping', trustpilot: 'amazon.com' },
+  'disney+': { appstore: '1446075923', playstore: 'com.disney.disneyplus', trustpilot: 'disneyplus.com' },
+  'disneyplus': { appstore: '1446075923', playstore: 'com.disney.disneyplus', trustpilot: 'disneyplus.com' },
+  'hulu': { appstore: '376510438', playstore: 'com.hulu.plus', trustpilot: 'hulu.com' },
+  'youtube': { appstore: '544007664', playstore: 'com.google.android.youtube', trustpilot: 'youtube.com' },
+  'twitter': { appstore: '333903271', playstore: 'com.twitter.android', trustpilot: 'twitter.com' },
+  'x': { appstore: '333903271', playstore: 'com.twitter.android', trustpilot: 'x.com' },
+  'linkedin': { appstore: '288429040', playstore: 'com.linkedin.android', trustpilot: 'linkedin.com' },
+  'reddit': { appstore: '1064216828', playstore: 'com.reddit.frontpage', trustpilot: 'reddit.com' },
+  'robinhood': { appstore: '938003185', playstore: 'com.robinhood.android', trustpilot: 'robinhood.com' },
+  'coinbase': { appstore: '886427730', playstore: 'com.coinbase.android', trustpilot: 'coinbase.com' },
+  'lyft': { appstore: '529379082', playstore: 'me.lyft.android', trustpilot: 'lyft.com' },
+  'grubhub': { appstore: '302920553', playstore: 'com.grubhub.android', trustpilot: 'grubhub.com' },
+  'dropbox': { appstore: '327630330', playstore: 'com.dropbox.android', trustpilot: 'dropbox.com' },
+  'notion': { appstore: '1232780281', playstore: 'notion.id', trustpilot: 'notion.so' },
+  'figma': { appstore: '1152747299', playstore: 'com.figma.mirror', trustpilot: 'figma.com' },
+  'stripe': { appstore: '978516833', playstore: 'com.stripe.android.dashboard', trustpilot: 'stripe.com' },
+  'shopify': { appstore: '371294472', playstore: 'com.shopify.mobile', trustpilot: 'shopify.com' },
+  'peloton': { appstore: '792750948', playstore: 'com.onepeloton.callisto', trustpilot: 'onepeloton.com' },
+};
+
+
+function handleChipInput(e, field) {
+  if (e.key === 'Enter' && e.target.value.trim()) {
+    e.preventDefault();
+    chipData[field].push(e.target.value.trim());
+    e.target.value = '';
+    renderChips(field);
+  }
+}
+
+function renderChips(field) {
+  const container = document.getElementById('competitorsInput');
+  if (field !== 'competitors') return;
+  const input = container.querySelector('input');
+  container.querySelectorAll('.chip').forEach(c => c.remove());
+  chipData[field].forEach((val, i) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip';
+    chip.innerHTML = `${escapeHtml(val)} <button onclick="removeChip('${field}',${i})">&times;</button>`;
+    container.insertBefore(chip, input);
+  });
+}
+
+function removeChip(field, idx) {
+  chipData[field].splice(idx, 1);
+  renderChips(field);
+}
+
+function buildSourcesForCompany(name, checkedSources, website) {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const nameLower = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const known = KNOWN_APPS[nameLower] || KNOWN_APPS[slug];
+  const sources = {};
+  if (checkedSources.hn) sources.hackernews = {};
+  if (checkedSources.reddit) sources.reddit = {};
+  if (checkedSources.appstore) {
+    const appId = known?.appstore;
+    if (appId) sources.appstore = { app_id: appId };
+  }
+  if (checkedSources.playstore) {
+    const playId = known?.playstore || `com.${nameLower}.android`;
+    sources.playstore = { app_id: playId };
+  }
+  if (checkedSources.trustpilot) {
+    let domain = known?.trustpilot;
+    if (!domain && website) {
+      try { domain = new URL(website).hostname.replace(/^www\./, ''); } catch {}
+    }
+    if (!domain) domain = `${slug}.com`;
+    sources.trustpilot = { domain: domain };
+  }
+  return sources;
+}
+
+function buildSearchTerms(name) {
+  const terms = [name];
+  if (name.toLowerCase() !== name) terms.push(name.toLowerCase());
+  terms.push(`${name} app`);
+  return terms;
+}
+
+async function createCompany() {
+  const name = document.getElementById('companyName').value.trim();
+  if (!name) { toast('Company name is required', 'error'); return; }
+
+  const website = document.getElementById('companyWebsite').value.trim() || null;
+
+  const checkedSources = {
+    hn: document.getElementById('srcHN').checked,
+    reddit: document.getElementById('srcReddit').checked,
+    appstore: document.getElementById('srcAppStore').checked,
+    playstore: document.getElementById('srcPlayStore').checked,
+    trustpilot: document.getElementById('srcTrustpilot').checked,
+  };
+
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  const sources = buildSourcesForCompany(name, checkedSources, website);
+  const searchTerms = buildSearchTerms(name);
+
+  try {
+    // Create the main company
+    await api('/api/companies', {
+      method: 'POST',
+      body: JSON.stringify({
+        name, slug, website,
+        search_terms: searchTerms,
+        competitors: chipData.competitors,
+        sources,
+      }),
+    });
+
+    // Auto-create each competitor as its own company
+    for (const comp of chipData.competitors) {
+      const compSlug = comp.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      const compSources = buildSourcesForCompany(comp, checkedSources);
+      const compTerms = buildSearchTerms(comp);
+      try {
+        await api('/api/companies', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: comp, slug: compSlug,
+            search_terms: compTerms,
+            competitors: [name],
+            sources: compSources,
+          }),
+        });
+      } catch (e) {
+        // Competitor may already exist — that's fine
+        console.log(`Competitor ${comp} may already exist:`, e.message);
+      }
+    }
+
+    hideAddCompanyModal();
+    const total = 1 + chipData.competitors.length;
+    toast(`${name} + ${chipData.competitors.length} competitor${chipData.competitors.length !== 1 ? 's' : ''} added!`);
+    await loadCompanies();
+    selectCompany(companies.find(c => c.slug === slug)?.id);
+  } catch (err) {
+    toast(err.message, 'error');
+  }
+}
+
+async function deleteCompany(id) {
+  if (!confirm('Delete this company? This cannot be undone.')) return;
+  await api(`/api/companies/${id}`, { method: 'DELETE' });
+  toast('Company deleted');
+  activeCompanyId = null;
+  document.getElementById('mainContent').innerHTML = '<div class="empty-state"><div class="icon">&#x1F4E1;</div><h3>Welcome to SignalGraph</h3><p>Add a company to start monitoring customer sentiment across platforms.</p></div>';
+  await loadCompanies();
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// --- Init ---
+loadCompanies();
+</script>
+</body>
+</html>

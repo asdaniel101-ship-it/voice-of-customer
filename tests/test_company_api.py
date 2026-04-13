@@ -57,11 +57,10 @@ async def test_delete_company(client: AsyncClient):
     delete_resp = await client.delete(f"/api/companies/{company_id}")
     assert delete_resp.status_code == 204
 
-    # Still appears in list but active=False (soft delete)
+    # Hard delete — company no longer in list
     list_resp = await client.get("/api/companies")
     companies = list_resp.json()
-    assert len(companies) == 1
-    assert companies[0]["active"] is False
+    assert len(companies) == 0
 
 
 @pytest.mark.asyncio

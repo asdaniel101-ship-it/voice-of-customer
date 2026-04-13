@@ -42,8 +42,9 @@ async def test_hackernews_fetch():
     source = HackerNewsSource()
 
     search_resp = MagicMock()
+    search_resp.status_code = 200
     search_resp.raise_for_status = MagicMock()
-    search_resp.json = MagicMock(return_value=MOCK_HN_RESPONSE)
+    search_resp.json = MagicMock(return_value={**MOCK_HN_RESPONSE, "nbPages": 1})
 
     mock_client = AsyncMock()
     mock_client.get = AsyncMock(return_value=search_resp)
